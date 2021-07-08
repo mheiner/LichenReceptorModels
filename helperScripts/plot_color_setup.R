@@ -1,0 +1,5 @@
+library("RColorBrewer")
+brewer.pal(name="RdYlBu", n=9)
+(red = brewer.pal(name="RdYlBu", n=9)[1])
+(yellow = brewer.pal(name="RdYlBu", n=9)[5])
+(blue = brewer.pal(name="RdYlBu", n=9)[9])

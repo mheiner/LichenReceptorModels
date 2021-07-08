@@ -1,0 +1,8 @@
+*.rda
+*.csv
+*.pdf
+*.eps
+*.png
+.DS_store
+.Rapp.history
+!data/rhizoplaca96.csv
