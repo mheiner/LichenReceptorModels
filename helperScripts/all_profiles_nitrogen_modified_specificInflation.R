@@ -32,7 +32,7 @@ element_names <- c("Ca", "K",  "Mg", "N",  "P",  "S",  "Al", "As", "B", "Ba", "C
 #####################################################################################################################################
 
 # Use inflation factors to adjust scaling of standard deviations
-inflation_factor <- 1
+# inflation_factor <- 1
 A_factor <- 1
 
 # Agriculture Soil: Nitrate = 0, sd = 0.6733. Ammonium = 0, sd = 0.1872.

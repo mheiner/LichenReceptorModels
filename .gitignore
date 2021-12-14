@@ -5,4 +5,5 @@
 *.png
 .DS_store
 .Rapp.history
+.Rhistory
 !data/rhizoplaca96.csv

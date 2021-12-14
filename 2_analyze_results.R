@@ -7,9 +7,43 @@
 # Load in raw Rhizoplaca lichen data file
 # load(file='data/dat_rhizICP.rda')
 
-# Load in model output file being analyzed
-load("postsim/baseModel_5prof_identified.rda")
+rm(list=ls())
 
+mod = "base"
+mod = "sparse"
+
+idf_rule = "original"
+
+K = 5
+K = 6
+
+inflation_factor = 1.0
+inflation_factor = 2.0
+
+seed = 12141
+
+# load(paste0("postsim/", mod, "Model_K", K, "_idf_original_inflat_fac", inflation_factor, ".rda"))
+load(paste0("postsim/", mod, "Model_idf_", idf_rule, "_K", K, "_inf", inflation_factor, "_seed", seed, ".rda"))
+
+### notes
+# base inf1 K5 idfOrig should replicate paper results (it doesn't: road dust goes all N)
+# sparse inf1 K5 idfOrig should replicate paper results (it does)
+
+###
+library("rstan")
+
+rhats = summary(fit)$summary[,"Rhat"]
+length(rhats)
+rhats_ord = order(rhats)
+head(rhats[rhats_ord], n=50)
+tail(rhats[rhats_ord], n=50)
+
+traceplot(fit, pars='lam[2,1]')
+traceplot(fit, pars='lam[4,5]')
+traceplot(fit, pars='lF[23,2]')
+
+traceplot(fit, pars='ly[66]')
+traceplot(fit, pars='ly[9]')
 
 # Explore estimated values
 options(max.print = 7500)
@@ -33,7 +67,7 @@ plot(fit, pars=c('F[2,1]', 'F[3,5]', 'F[7,10]', 'F[3,20]', 'F[5,1]', 'F[2,4]', '
 
 # Look at distribution of baseline profile contributions across all MCMC samples
 f <- rstan::extract(fit, pars='F')$F
-plot(density(f[,1,]), xlim=c(0,25))
+plot(density(f[,1,1]))
 
 # Look at autocorrelation
 lam155 <- rstan::extract(fit, pars='lam[15,5]')$`lam[15,5]`
@@ -52,50 +86,22 @@ lichen_map <- get_stamenmap(bbox = c(left = -125, bottom = 35, right=-100, top=4
 
 # Extract median contributions, create a data frame
 median_contributions <- summary(fit, pars='F')$summary[ , "50%"]
-dim(median_contributions) <- c(96,5)
+dim(median_contributions) <- c(96, K)
 median_contributions <- as.data.frame(median_contributions)
-colnames(median_contributions) <- c('Baseline', 'Playa', 'Brake', 'Exhaust', 'Unpaved')#, "Anthropogenic")#, 'Iron_Escape')
+
+if (K == 5) {
+  colnames(median_contributions) <- c('Baseline', 'Playa', 'Brake', 'Exhaust', 'Unpaved')
+} else if (K == 6) {
+  colnames(median_contributions) <- c('Baseline', 'Playa', 'Brake', 'Exhaust', 'Unpaved', 'Natural')
+}
+
 median_contributions$long <- dat_now$long
 median_contributions$lat <- dat_now$lat
-#median_contributions[,1:5] <- median_contributions[,1:5]*10000
 
-# Map out contributions with point size based on the factor of interest
-ggmap(lichen_map) +
-  geom_point(data = median_contributions, aes(x = long, y = lat, size = Exhaust)) +
-  xlab("Longitude") + ylab("Latitude") + theme_bw() +
-  ggtitle("Map of Source Contributions for Motor Vehicle Exhaust")# + 
-  scale_size_area(name='Contribution',
-                  max_size=8,
-                  breaks=1000*c(2,4,6,8,10))
-  
-# Map out contributions for Baseline profile
-  ggmap(lichen_map) +
-    geom_point(data = median_contributions, aes(x = long, y = lat, size = Baseline)) +
-    xlab("Longitude") + ylab("Latitude") + theme_bw() +
-    ggtitle("Map of Source Contributions for Baseline Rhizoplaca") + 
-    scale_size(name='Contribution',
-               range = c(0.1, 8),
-               breaks = 40000*c(1:4),
-               labels = c("40000", "80000", "120000", "160000"))
-  
-# Clarify column names, change data frame from wide to long to allow for different visualizations
-colnames(median_contributions)[1:5] <- c("Baseline Rhizoplaca", "Playa", "Brake Wear",
-                                    "Motor Vehicle Exhaust", "Unpaved Road Dust")
-median_contributions$long <- dat_now$long
-median_contributions$lat <- dat_now$lat
-long_df <- median_contributions %>% 
-  pivot_longer(c(1:5), names_to="Source", values_to="Contribution") %>%
-  data.frame()
-
-# Use facet wrap to display contributions for all sources (maps will appear as a grid)
-ggmap(lichen_map) +
-  geom_point(data=long_df, aes(x=long, y=lat, size=Contribution)) +
-  xlab("Longitude") + ylab("Latitude") + theme_bw() +
-  ggtitle("Maps of Source Contributions") +
-  scale_size_area(breaks=1000*c(1:5))+
-  facet_wrap(~Source)
-
-
+## if base model
+if (mod == "base") {
+  median_contributions[,1:K] <- median_contributions[,1:K]*10000
+}
 
 ##########################################################################################################################
 # Create new maps with both color gradient and point size based on contribution amounts ##################################
@@ -111,102 +117,43 @@ lichen_map <- get_stamenmap(bbox = c(left = -121.5, bottom = 35.5,
                             # maptype="terrain",
                             color = "bw", force = FALSE)
 
-colnames(median_contributions)[1:5] <- c('Baseline', 'Playa', 'Brake', 'Exhaust', 'Unpaved')#, "Anthropogenic")#, 'Iron_Escape')
+median_contributions$long <- dat_now$long
+median_contributions$lat <- dat_now$lat
 
-ggmap(lichen_map) +
-  geom_point(data = median_contributions %>% arrange(desc(!!sym("Unpaved"))),  # I arrange the data frame so that the larger points are plotted first (so small points don't get covered)
-             aes_string(x = "long", y = "lat",
-                        color = "Unpaved", size="Unpaved")) +
-  labs(color="Contributions", size="") + 
-  ggtitle("Unpaved Road Dust") +
-  scale_color_gradient(low = "blue", high = "red", trans='log') +
-  scale_size_continuous(trans='log')+
-  guides(color=guide_colorbar(order=1)) +
-  guides(size=guide_legend(reverse=T, order=2))
-
-ggsave("plots/map_sparseModel_Unpaved_Log.pdf", width=6.25, height=5) ## file names should reflect current selections
-
-
-############################################################################################################################################
-# Make bar plots for profile estimates #####################################################################################################
-############################################################################################################################################
-
-source("helperScripts/all_profiles_nitrogen_modified_specificInflation.R")
-
-elems_list <- colnames(alpha_matrix)
-estimated_profile_medians <- summary(fit, pars='lam')$summary[,'50%']
-dim(estimated_profile_medians) <- c(5,25)
-colnames(estimated_profile_medians) <- elems_list
-rownames(estimated_profile_medians) <- c('Baseline', 'Playa', 'Brake', 'Exhaust', 'Unpaved')#, "Anthropogenic")
-
-estimated_upper <- summary(fit, pars='lam')$summary[,'75%']
-dim(estimated_upper) <- c(5,25)
-estimated_lower <- summary(fit, pars='lam')$summary[,'25%']
-dim(estimated_lower) <- c(5,25)
-
-## save these for each model run, e.g., 
-# save("postsim/base_profile_medians_intervals.rda", 
-#      estimated_profile_medians, estimated_profile_lower, estimated_profile_upper)
-
-
-#######################################################################################################################
-# Create prior vs posterior profile bar plots (with uncertainty) with re-scaled y-axis ################################
-
-# First, load in relevant data (if not done already)
-load('postsim/base_profile_medians_intervals.rda') # saved medians, upper, and lower (from commented code above)
-estimated_medians_base <- estimated_profile_medians
-estimated_upper_base <- estimated_upper; estimated_lower_base <- estimated_lower
-
-load('postsim/sparse_profile_medians_intervals.rda') # saved medians, upper, and lower (from commented code above)
-estimated_medians_sparse <- estimated_profile_medians
-estimated_upper_sparse <- estimated_upper; estimated_lower_sparse <- estimated_lower
-
-source('helperScripts/sim_profile_prior.R')
-
-sourcenames = c("Baseline", "Playa Dust", "Brake Wear", "Motor Vehicle Exhaust", "Unpaved Road Dust")
-simnames = c("baseline_sims", "playa_sims", "brake_sims", "exhaust_sims", "unpaved_dust_sims")
-
-# Create a power transformation function
-pow = function(x, p) x^p - 1
-pw = 0.4
-ticks = c(0, 0.01, 0.1, 0.25, 0.5, 1.0)
-elems_list <- elem_names
-
-profile = 1
-
-# Create and save the bar plot for each profile
-for(profile in 1:length(sourcenames)) {
-  sims_now <- get(simnames[profile])
-  
-  prior_lower <- apply(sims_now, 1, FUN = function(x) quantile(x, 0.25))
-  prior_medians <- apply(sims_now, 1, median)
-  prior_upper <- apply(sims_now, 1, FUN = function(x) quantile(x, 0.75))
-  
-  df3 <- data.frame(Median = prior_medians, Elements = elems_list, Lower = prior_lower,
-                    Upper = prior_upper, Type = "Prior")
-  
-  df1 <- data.frame(Median = estimated_medians_base[profile,], Elements = elems_list,
-                    Lower = estimated_lower_base[profile,], Upper = estimated_upper_base[profile,],
-                    Type = "Base BMRM")
-  
-  df2 <- data.frame(Median = estimated_medians_sparse[profile,], Elements = elems_list,
-                    Lower = estimated_lower_sparse[profile,], Upper = estimated_upper_sparse[profile,],
-                    Type = "S-BMRM")
-  
-  df_new <- rbind(df1, df2, df3)
-  df_new$Type <- as.factor(df_new$Type)
-  
-  ggplot(data=df_new, aes(x=Elements, y=1+pow(Median, pw), fill=Type)) + xlab(label = "") +
-    geom_bar(stat='identity', position= position_dodge())+
-    geom_errorbar(aes(ymin=(1+pow(Lower, pw)), ymax=(1+pow(Upper, pw))), col='black', position = position_dodge()) +
-    ggtitle(sourcenames[profile]) + 
-    scale_fill_discrete(type=c('red', 'gray50', 'blue'))+
-    scale_y_continuous("Percent", breaks=1+pow(ticks,pw), labels=ticks*100, limits=c(0.0, 0.96))+
-    theme(legend.title = element_blank())
-  
-  ggsave(paste0("plots/ProfileBarplots_", gsub(" ", "_", sourcenames[profile]), ".pdf"), width=9, height=2.0)
-  cat(profile, "of", length(sourcenames), "\r")
+if (K == 5) {
+  srcnames = c('Baseline', 'Playa', 'Brake', 'Exhaust', 'Unpaved')
+  srcnames_fancy = c("Baseline Rhizoplaca", "Playa", "Brake Wear",
+                     "Motor Vehicle Exhaust", "Unpaved Road Dust")
+} else if (K == 6) {
+  srcnames = c('Baseline', 'Playa', 'Brake', 'Exhaust', 'Unpaved', 'Natural')
+  srcnames_fancy = c("Baseline Rhizoplaca", "Playa", "Brake Wear",
+                     "Motor Vehicle Exhaust", "Unpaved Road Dust", "Unspecified Natural")
 }
+colnames(median_contributions)[1:K] <- srcnames
+
+k = 2
+
+for (k in 1:K) {
+  ggmap(lichen_map) +
+    geom_point(data = median_contributions %>% arrange(desc(!!sym(srcnames[k]))),  # I arrange the data frame so that the larger points are plotted first (so small points don't get covered)
+               aes_string(x = "long", y = "lat",
+                          color = srcnames[k], size=srcnames[k])) +
+    labs(color="Contributions", size="") + 
+    ggtitle(srcnames_fancy[k]) +
+    scale_color_gradient(low = "blue", high = "red") +
+    scale_size_continuous() +
+    guides(color=guide_colorbar(order=1)) +
+    guides(size=guide_legend(reverse=T, order=2))
+  
+  pltname = paste0("plots/map_contrib_", mod, "_K", K, "_inflat", inflation_factor, "_idfOrig_", srcnames[k], ".pdf")
+  ggsave(pltname, width=6.25, height=5) ## file names should reflect current selections
+}
+
+###
+
+
+
+
 
 
 
