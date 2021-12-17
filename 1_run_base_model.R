@@ -9,7 +9,7 @@ seed = as.numeric(ARGS[4])
 # idf_rule = "original"
 # K = 5
 # inflation_factor = 1.0 # replaces the assignment at beginning of "all_prof...R"
-
+# seed = 1
 
 # Load in the raw rhizoplaca lichen data
 load(file = 'data/dat_rhizICP.rda')
@@ -55,29 +55,36 @@ if (idf_rule == "original") {
   ## original identifiability conditions
   for (k in 3:5) {
     ord = order(Lam_all[,k])
-    Lam_all[ord[1:(K-1)],k] = 1e-9
+    Lam_all[ord[1:(K-1)],k] = 0.0
   }
-  Lam_all[c(8,11,12,17),1] = 1e-9 # add in element 21 if more than 5 profiles
-  Lam_all[c(12,16,17,25),2] = 1e-9 # add in element 21 if more than 5 profiles
+  Lam_all[c(8,11,12,17),1] = 0.0 # add in element 21 if more than 5 profiles
+  Lam_all[c(12,16,17,25),2] = 0.0 # add in element 21 if more than 5 profiles
   if (K == 6) {
-    Lam_all[21,1] = 1e-9
-    Lam_all[21,2] = 1e-9
+    Lam_all[21,1] = 0.0
+    Lam_all[21,2] = 0.0
     # If natural is profile 6:
-    Lam_all[c(13,14,19,20,21), 6] = 1e-9
+    Lam_all[c(13,14,19,20,21), 6] = 0.0
     # If anthropogenic is profile 6:
-    #Lam_all[c(order(Lam_all[1:(K-1),6]),15),6] = 1e-9
-    #Lam_all[order(Lam_all[1:(K-1),7]),7] = 1e-9 # for an iron escape profile
+    #Lam_all[c(order(Lam_all[1:(K-1),6]),15),6] = 0.0
+    #Lam_all[order(Lam_all[1:(K-1),7]),7] = 0.0 # for an iron escape profile
   }
   if (K == 7) {
-    Lam_all[c(8,11,12,17,19,21),1] = 1e-9 # Baseline
-    Lam_all[c(12,16,17,19,21,25),2] = 1e-9 # Playa
-    Lam_all[c(13,14,19,20,21,25),6] = 1e-9 # Natural
-    Lam_all[order(Lam_all[,7])[1:(K-1)],7] = 1e-9 # Anthropogenic
+    Lam_all[c(8,11,12,17,19,21),1] = 0.0 # Baseline
+    Lam_all[c(12,16,17,19,21,25),2] = 0.0 # Playa
+    Lam_all[c(13,14,19,20,21,25),6] = 0.0 # Natural
+    Lam_all[order(Lam_all[,7])[1:(K-1)],7] = 0.0 # Anthropogenic
   }
   
 } else if (idf_rule == "something else") {
   
 }
+# ## and for the prior:
+# for (k in 1:K ) {
+#   alpha_matrix[k,which(Lam_all[,k] == 0.0)] = 5.0
+#   beta_matrix[k,which(Lam_all[,k] == 0.0)] = 5.0*1e6
+# }
+
+
 ############################################################################################################
 
 # Make sure prior values are all assigned properly for the model in the list "dat_stan1":
@@ -100,26 +107,33 @@ dat_stan1$K = K
 dat_stan1$a = a
 dat_stan1$b = b
 
+dat_stan1$indx_non0Lam = which(Lam_all > 0.0) # vector indexing of the L by K Lambda matrix
+dat_stan1$indx_0Lam = which(Lam_all == 0.0)
+dat_stan1$n_non0Lam = length(dat_stan1$indx_non0Lam)
+dat_stan1$n0Lam = length(dat_stan1$indx_0Lam)
+all.equal(sort(c(dat_stan1$indx_non0Lam, dat_stan1$indx_0Lam)), 1:(dat_stan1$L*dat_stan1$K))
+
 
 
 library("parallel")
 n_chains =  4
 (n_cores = min( detectCores(logical=FALSE), n_chains ))
 
-file1 = 'base_model.stan'
+# file1 = 'base_model.stan'
+file1 = 'base_model_hard0.stan'
 
 # Using the rstan library, run the model specified in "file1" on the data contained in dat_stan1.
-# Use 7,000 iterations, discarding by default the first 5,000 as burn-in.
+# Use 8,000 iterations, discarding by default the first 2,000 as burn-in.
 # 4 cores are used.
 library("rstan")
 fit = stan(
   file = file1, data = dat_stan1,
-  chains = n_chains, cores = n_cores, iter = 7000,
+  chains = n_chains, cores = n_cores, iter = 8000, warmup = 2000,
   control = list(max_treedepth = 18,
-                 adapt_delta = 0.9999),
-  pars = c("x", "lx", "lF", "lF0", "lF1", "llam", "ly"), include=FALSE,
+                 adapt_delta = 0.999),
+  pars = c("x", "lx", "lF", "lF0", "lF1", "llam_vec", "llam", "ly"), include=FALSE,
   seed = seed
 )
 
 # Save the file in an easily accessible location
-save(fit, file=paste0('postsim/baseModel_idf_', idf_rule, '_K', K, '_inf', inflation_factor, "_seed", seed, '.rda'))
+save(fit, file=paste0('postsim/baseModel_hard0_idf_', idf_rule, '_K', K, '_inf', inflation_factor, "_seed", seed, '.rda'))

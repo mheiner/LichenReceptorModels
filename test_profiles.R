@@ -8,6 +8,7 @@ library("Matrix")
 ####
 
 Z = Lam_all # from model spec
+Z = Lam_orig
 dim(Z)
 (K = ncol(Z))
 Z[Z==1e-9] = 0

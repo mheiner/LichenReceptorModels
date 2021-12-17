@@ -37,6 +37,8 @@ if(K == 5) {
   rownames(estimated_medians_base) <- rownames(estimated_medians_sparse) <- c('Baseline', 'Playa', 'Brake', 'Exhaust', 'Unpaved')
 } else if (K == 6) {
   rownames(estimated_medians_base) <- rownames(estimated_medians_sparse) <- c('Baseline', 'Playa', 'Brake', 'Exhaust', 'Unpaved', 'Natural')
+} else if (K == 7) {
+  rownames(estimated_medians_base) <- rownames(estimated_medians_sparse) <- c('Baseline', 'Playa', 'Brake', 'Exhaust', 'Unpaved', 'Natural', 'Anthropogenic')
 }
 
 
@@ -48,6 +50,9 @@ if(K == 5) {
 } else if (K == 6) {
   sourcenames = c("Baseline", "Playa Dust", "Brake Wear", "Motor Vehicle Exhaust", "Unpaved Road Dust", "Unspecified Natural")
   simnames = c("baseline_sims", "playa_sims", "brake_sims", "exhaust_sims", "unpaved_dust_sims", "natural_sims")
+} else if (K == 7) {
+  sourcenames = c("Baseline", "Playa Dust", "Brake Wear", "Motor Vehicle Exhaust", "Unpaved Road Dust", "Unspecified Natural", "Unspecified Anthropogenic")
+  simnames = c("baseline_sims", "playa_sims", "brake_sims", "exhaust_sims", "unpaved_dust_sims", "natural_sims", "anthropogenic_sims")
 }
 
 

@@ -12,15 +12,7 @@ load(file = 'data/dat_rhizICP.rda')
 
 # Run the file below to access prior information for each profile
 source('helperScripts/all_profiles_nitrogen_modified_specificInflation.R')
-
 L = dat_stan$L
-
-## prior on error coefficient of variation
-mean_cv = rep(0.5, L)
-sd_cv = rep(0.2, L)
-
-a = mean_cv^2 / sd_cv^2
-b = mean_cv / sd_cv^2
 
 
 # Use baseline, playa, brake, exhaust, and unpaved profiles.
@@ -41,10 +33,21 @@ if (K == 5) {
 el_use = 1:ncol(alpha_matrix)
 (K = nrow(alpha_matrix))
 (L = length(el_use))
+
+source('helperScripts/simProfiles_prior.R')
+dim(Lsim)
+dimnames(Lsim)
+Lsim_med = t(Lsim_med)
+Lsim_sd = t(Lsim_sd)
+
 x = t(alpha_matrix[, el_use] / beta_matrix[, el_use])
 
 Lam = x / rep(colSums(x), each=nrow(x))
-(Lam_orig = x / rep(colSums(x), each=nrow(x)))
+colnames(Lam)
+colnames(Lsim_med)
+colnames(Lam) = colnames(Lsim_med)
+
+Lam_orig = Lam
 
 ## original identifiability conditions
 for (k in 3:5) {
@@ -69,9 +72,21 @@ if (K == 7) {
   Lam_orig[order(Lam_orig[,7])[1:(K-1)],7] = 1e-9 # Anthropogenic
 }
 
+pow = function(x, p) x^p
+pw = 0.4
 
 library("lattice")
-levelplot(log(Lam), main="Lam")
+# pdf(file="Lam_prior_means.pdf", width=8, height=4)
+levelplot(pow(Lam[,K:1], pw), main="Lam")
+# dev.off()
+
+# pdf(file="Lam_sim_medians.pdf", width=8, height=4)
+levelplot(pow(Lsim_med[,K:1], pw), main="Lam sim median")
+# dev.off()
+
+# pdf(file="Lam_prior_sds.pdf", width=8, height=4)
+levelplot(pow(Lsim_sd[,K:1], pw), main="Lam sim st. deviation")
+# dev.off()
 
 Z = Lam_orig # from model spec
 
@@ -79,4 +94,7 @@ dim(Z)
 (K = ncol(Z))
 Z[Z==1e-9] = 0
 Z
-levelplot(1*(Z > 0.0), main="Lam orig 1-0")
+
+# pdf(file="Lam_id01.pdf", width=8, height=4)
+levelplot(1*(Z[,K:1] > 0.0), main="Lam identified 1-0", col.regions=gray((0:15)/15))
+# dev.off()

@@ -16,9 +16,11 @@ idf_rule = "original"
 
 K = 5
 K = 6
+K = 7
 
 inflation_factor = 1.0
 inflation_factor = 2.0
+inflation_factor = 3.0
 
 seed = 12141
 
@@ -38,9 +40,8 @@ rhats_ord = order(rhats)
 head(rhats[rhats_ord], n=50)
 tail(rhats[rhats_ord], n=50)
 
-traceplot(fit, pars='lam[2,1]')
+traceplot(fit, pars='lam[22,1]')
 traceplot(fit, pars='lam[4,5]')
-traceplot(fit, pars='lF[23,2]')
 
 traceplot(fit, pars='ly[66]')
 traceplot(fit, pars='ly[9]')
@@ -93,6 +94,8 @@ if (K == 5) {
   colnames(median_contributions) <- c('Baseline', 'Playa', 'Brake', 'Exhaust', 'Unpaved')
 } else if (K == 6) {
   colnames(median_contributions) <- c('Baseline', 'Playa', 'Brake', 'Exhaust', 'Unpaved', 'Natural')
+} else if (K == 7) {
+  colnames(median_contributions) <- c('Baseline', 'Playa', 'Brake', 'Exhaust', 'Unpaved', 'Natural', 'Anthropogenic')
 }
 
 median_contributions$long <- dat_now$long
@@ -128,6 +131,10 @@ if (K == 5) {
   srcnames = c('Baseline', 'Playa', 'Brake', 'Exhaust', 'Unpaved', 'Natural')
   srcnames_fancy = c("Baseline Rhizoplaca", "Playa", "Brake Wear",
                      "Motor Vehicle Exhaust", "Unpaved Road Dust", "Unspecified Natural")
+} else if (K == 7) {
+  srcnames = c('Baseline', 'Playa', 'Brake', 'Exhaust', 'Unpaved', 'Natural', 'Anthropogenic')
+  srcnames_fancy = c("Baseline Rhizoplaca", "Playa", "Brake Wear",
+                     "Motor Vehicle Exhaust", "Unpaved Road Dust", "Unspecified Natural", "Unspecified Anthropogenic")
 }
 colnames(median_contributions)[1:K] <- srcnames
 

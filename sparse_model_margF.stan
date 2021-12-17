@@ -27,7 +27,7 @@ transformed data {
 
 parameters {
   matrix[L,K] lx;
-
+  
   // matrix[K,n] lF;
   row_vector<upper=log(flim)>[n] lF0;
   matrix[K-1,n] lF1;
@@ -58,17 +58,17 @@ model {
   
   exp(to_vector(lx)) ~ gamma(to_vector(alpha), to_vector(beta));
   target+= sum(to_vector(lx));
-
+  
   gamma ~ exponential(1 / (2 * gamma_0));
-
+  
   exp(lF0) ~ uniform(0, flim);  // baseline contributions, row vector
   target += sum(lF0);
   
   to_vector(exp(lF1)) ~ gamma(1.0/(K-1), to_vector(rep_matrix(inv(gamma), K-1))); // everything excluding baseline
   target += sum(to_vector(lF1));
-
+  
   cv ~ gamma(a, b);
-
+  
   // transformations
   lF = append_row(lF0, lF1);
   for (i in 1:n){
@@ -76,7 +76,7 @@ model {
       lLF[j,i] = log_sum_exp(to_vector(llam[j,]) + lF[,i]);
     }
   }
-
+  
   sig = sqrt(log(square(to_vector(rep_matrix(cv, n))) + 1.0)); 
   
   // data
