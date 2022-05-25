@@ -1,4 +1,3 @@
-
 data {
   int<lower=0> L; // number of elements
   int<lower=0> n; // number of samples ( n*L = n_obs + n_mis + n_bdl )
@@ -13,39 +12,36 @@ data {
   int n_obs;
   int n_mis;
   int n_bdl;
-  int indx_obs[n_obs]; // indexes a flattened (column major order) n by L matrix
-  int indx_mis[n_mis]; // indexes a flattened (column major order) n by L matrix
-  int indx_bdl[n_bdl]; // indexes a flattened (column major order) n by L matrix
+  int indx_obs[n_obs]; // indexes a flattened (column major order) L by n matrix
+  int indx_mis[n_mis]; // indexes a flattened (column major order) L by n matrix
+  int indx_bdl[n_bdl]; // indexes a flattened (column major order) L by n matrix
   vector<lower=0>[n_obs] y_obs;
   vector<lower=0>[n_bdl] dl_censor_vals;
+
+  int<lower=0> n0Lam_each;
+  int<lower=0> non0Lam_indx[L-n0Lam_each, K];
 }
 
 transformed data {
   vector[n_obs] ly_obs = log(y_obs);
   vector[n_bdl] ldl_censor_vals = log(dl_censor_vals);
+  matrix[L,K] logbeta = log(beta);
 }
 
 parameters {
-  matrix[L,K] lx;
+  matrix[L-n0Lam_each-1, K] x; // logit of lam
 
-  // matrix[K,n] lF;
   row_vector<upper=log(flim)>[n] lF0;
   matrix[K-1,n] lF1;
   vector<lower=0>[L] cv;
-  // real<lower=0> gamma;
   row_vector<lower=0>[n] gamma;
   vector<lower=0>[n_bdl] logamount_bdl;
   vector[n_mis] ly_mis;
 }
 
 transformed parameters {
-  matrix<upper=0>[L,K] llam;
   vector[n*L] ly; // complete data vector
-  // Lambda matrix
-  for(k in 1:K) {
-    llam[,k] = lx[,k] - log_sum_exp(lx[,k]);//normalize gamma draws to create log(lambda) matrix (profiles)
-  }
-  
+
   ly[indx_obs] = ly_obs;
   ly[indx_mis] = ly_mis;
   ly[indx_bdl] = (ldl_censor_vals - logamount_bdl);
@@ -53,11 +49,23 @@ transformed parameters {
 
 model {
   matrix[K,n] lF;
-  vector[L*n] sig;
   matrix[L,n] lLF;
-  
-  exp(to_vector(lx)) ~ gamma(to_vector(alpha), to_vector(beta));
-  target+= sum(to_vector(lx));
+  vector[L*n] sig;
+
+  vector[K] lxdenom;
+  matrix[L,K] llam = rep_matrix(negative_infinity(), L, K);
+  for(k in 1:K) {
+    lxdenom[k] = log1p_exp(log_sum_exp(x[,k]));
+    for(ell in 1:(L-n0Lam_each-1)) {
+      llam[non0Lam_indx[ell, k], k] = x[ell,k] - lxdenom[k];
+    }
+    llam[non0Lam_indx[L-n0Lam_each, k], k] = -lxdenom[k];
+  }
+
+  for(k in 1:K) { // Generalized Dirichlet Prior of Lingwall et. al. (2008)
+    target += -sum(alpha[non0Lam_indx[,k], k])*log_sum_exp(llam[non0Lam_indx[,k], k] + logbeta[non0Lam_indx[,k], k]); // beta is rate param
+    target += sum(alpha[non0Lam_indx[,k], k] .* llam[non0Lam_indx[,k], k]); // Jacobian for x built in here
+  }
 
   gamma ~ exponential(1 / (2 * gamma_0));
 
@@ -84,15 +92,35 @@ model {
 }
 
 generated quantities { // for monitoring
-  matrix[L,K] lam = exp(llam);
-  matrix[K,n] F = exp(append_row(lF0, lF1));
-  matrix[K,n] lF = log(F);
-  
+  matrix[L,K] lam;
+  matrix[K,n] F;
+  matrix[K,n] lF;
   matrix[L,n] lLF;
+  vector[L*n] sig;
+  vector[n_obs] llik;
+  
+  vector[K] lxdenom;
+  matrix[L,K] llam = rep_matrix(negative_infinity(), L, K);
+  for(k in 1:K) {
+    lxdenom[k] = log1p_exp(log_sum_exp(x[,k]));
+    for(ell in 1:(L-n0Lam_each-1)) {
+      llam[non0Lam_indx[ell, k], k] = x[ell,k] - lxdenom[k];
+    }
+    llam[non0Lam_indx[L-n0Lam_each, k], k] = -lxdenom[k];
+  }
+
+  lam = exp(llam);
+  lF = append_row(lF0, lF1);
+  F = exp(lF);
+  
   for (i in 1:n){
     for(j in 1:L){
       lLF[j,i] = log_sum_exp(to_vector(llam[j,]) + lF[,i]);
     }
   }
   
+  sig = sqrt(log(square(to_vector(rep_matrix(cv, n))) + 1.0));
+  for (i in 1:n_obs) {
+    llik[i] = normal_lpdf(ly_obs[i] | to_vector(lLF)[indx_obs[i]], sig[indx_obs[i]]);
+  }
 }
